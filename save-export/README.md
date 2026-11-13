@@ -19,6 +19,18 @@ pktmon 抓登录流量（只留网关 IP:80，一次登录约 18 KB）
   → normalize（身份归一）+ validate（83 键基线）→ 打包
 ```
 
+## 支持哪些服
+
+M4（安卓官方服）、iOS 服，以及同后端的其他分区。
+
+网关域名形如 `gfcn-<分区>.merge.sunborngame.com` —— M4 是 `gfcn-game.gw.…`，
+iOS 是 `gfcn-game.ios.…`。**不需要你选服**：抓包只按 TCP 80 端口，
+抓完从请求的 `Host` 头把这次实际用的域名认出来，后续请求的 `Host`
+和直连 IP 都跟着它走。
+
+域名白名单按后缀匹配：必须以 `gfcn-` 开头、以 `.merge.sunborngame.com` 结尾，
+且 DNS 解析结果全是公网地址，否则拒绝连接。
+
 ## 为什么只读响应，不重放请求
 
 服务端按 `req_id` 去重，原样重放会被拒；而且 ticket 有时效。直接读客户端
