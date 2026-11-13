@@ -55,11 +55,12 @@
 
 服务端自带一份示例存档，不导出也能直接玩。想用自己的号：
 
-1. 在 Windows 上**右键** `GF存档导出.exe` → **以管理员身份运行**（抓包需要管理员）
-2. 按提示打开官方 PC 客户端，登录，进到主界面
-3. 顺手点开一次 **好友** 页 —— 好友列表会一起导出来
-4. 回到黑窗口按回车
-5. 拿到 `save-<uid>-<日期>.gfsave.zip`
+1. 从 [apk-v1](#apk-v1) 下载 `GFSaveExport.exe`（9.3 MB 单文件，不用装 Python）
+2. **右键**它 → **以管理员身份运行**（抓包需要管理员权限）
+3. 按提示打开官方 PC 客户端，登录，进到主界面
+4. 顺手点开一次 **好友** 页 —— 好友列表会一起导出来
+5. 回到黑窗口按回车
+6. 拿到 `save-<uid>-<日期>.gfsave.zip`
 
 细节见 [save-export/README.md](save-export/README.md)。
 
@@ -92,6 +93,9 @@
 |---|---|---|---|
 | `gf_cn_506_local.apk` | `com.sunborn.girlsfrontline.cn` | 318,403,335 | `c973de25ecd40a7b46b73784c3d9d04db84ecc982676985dc3ce04a1344ecfd5` |
 | `app-debug.apk` | `com.gfserver.phone.debug` | 188,725,401 | `6dc3276683b632b1a6b1a10a0440ce858294c75e6eb393596cf3c7b5445c0ab1` |
+| `GFSaveExport.exe` | —（Windows 工具，非 APK） | 9,722,194 | `6100a9cd2420c8b98cddd3951c846346ac1d927836282773bf0b04af6fe30562` |
+
+`GFSaveExport.exe` 就是「GF存档导出」—— 在电脑上导出官方账号存档用，见[使用教程第 ④ 步](#使用教程)。不用装 Python。
 
 ### 客户端 APK
 
