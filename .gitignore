@@ -1,9 +1,9 @@
-# tooling / caches
+# 工具 / 缓存
 __pycache__/
 *.pyc
 .mimosa/
 .zcode/
 
-# local artifacts
+# 本地产物
 *.gfsave.zip
 save-[0-9]*/
