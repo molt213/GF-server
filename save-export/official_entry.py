@@ -51,9 +51,10 @@ def _relaunch_as_admin() -> bool:
 
 
 def _out_dir() -> Path:
+    """exe 旁边，或脚本所在目录（源码模式）。"""
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent.parent
+    return Path(__file__).resolve().parent
 
 
 def run(from_pcap=None, keep: bool = False, use_filter: bool = True,
