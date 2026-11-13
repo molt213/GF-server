@@ -43,17 +43,22 @@ def is_admin() -> bool:
         return False
 
 
-def resolve_gateway() -> str:
-    """解析网关 IP。必须在改 hosts 之前调用，否则会解析到 127.0.0.1。"""
-    assert_public_host(HOST)
-    infos = socket.getaddrinfo(HOST, 80, type=socket.SOCK_STREAM)
+def resolve_host_ip(host: str) -> str:
+    """解析指定网关域名到公网 IP（多条 A 记录取第一条公网地址）。"""
+    assert_public_host(host)
+    infos = socket.getaddrinfo(host, 80, type=socket.SOCK_STREAM)
     for _fam, _typ, _proto, _canon, sockaddr in infos:
         ip = ipaddress.ip_address(sockaddr[0])
         if (ip.is_private or ip.is_loopback or ip.is_link_local
                 or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
             continue
         return str(ip)
-    raise PackError("网关没有解析到公网地址")
+    raise PackError("网关没有解析到公网地址：%s" % host)
+
+
+def resolve_gateway() -> str:
+    """解析网关 IP。必须在改 hosts 之前调用，否则会解析到 127.0.0.1。"""
+    return resolve_host_ip(HOST)
 
 
 _CTRL_HOOK = None    # 必须保住回调引用，否则会被 GC 掉

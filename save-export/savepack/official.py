@@ -53,21 +53,25 @@ def load_template() -> dict:
     return data
 
 
-def session_from_form(form: bytes, gateway_ip: str) -> dict:
+def session_from_form(form: bytes, gateway_ip: str, host: str = None) -> dict:
     """把抓包里的 getUidPC 表单**改掉 req_id** 后重放，换 uid/sign。
 
     不能原样重放：服务端按 req_id 去重，同一个 req_id 再来一次会被拒。
     ticket 本身是长期凭据（15 小时级），换个 req_id 就能用。
+
+    host 是这次登录实际用的网关域名（各分区不同，见 live.detect_host）；
+    Host 头必须与它一致，否则服务端的分区路由会拒。
     """
     from urllib.parse import parse_qsl, urlencode
 
+    host = host or HOST
     pairs = parse_qsl(form.decode("latin-1"), keep_blank_values=True)
     names = {k for k, _ in pairs}
     if not {"openid", "ticket"} <= names:
         raise PackError("抓到的表单不像 getUidPC（字段：%s）" % sorted(names))
     req_id = "%d%05d" % (int(time.time()), 1)
     body = urlencode([(k, req_id if k == "req_id" else v) for k, v in pairs])
-    status, raw = _post_via_ip(gateway_ip, GET_UID_ROUTE, body)
+    status, raw = _post_via_ip(gateway_ip, GET_UID_ROUTE, body, host=host)
     if status != 200:
         raise PackError("getUidPC HTTP %s（票据可能过期，重新抓一次）" % status)
     text = _strip_hash(raw.decode("utf-8", "replace"))
@@ -82,10 +86,11 @@ def session_from_form(form: bytes, gateway_ip: str) -> dict:
     sign = str(obj.get("sign") or "")
     if not uid or not sign:
         raise PackError("登录响应缺 uid/sign：%s" % sorted(obj))
-    return {"uid": uid, "sign": sign}
+    return {"uid": uid, "sign": sign, "host": host}
 
 
-def _post_via_ip(ip: str, route: str, body: str, timeout: int = 120):
+def _post_via_ip(ip: str, route: str, body: str, timeout: int = 120,
+                 host: str = None):
     """用 IP 直连网关（Host 头仍写域名）。
 
     拉数据时 hosts 可能还指着 127.0.0.1（为了让游戏继续正常登录），
@@ -106,7 +111,7 @@ def _post_via_ip(ip: str, route: str, body: str, timeout: int = 120):
     conn = http.client.HTTPConnection(ip, 80, timeout=timeout)
     try:
         conn.request("POST", BASE_PATH + route, body, {
-            "Host": HOST,
+            "Host": host or HOST,
             "Content-Type": "application/x-www-form-urlencoded",
             "X-Unity-Version": "2018.4.36f1",
             "User-Agent": ("UnityPlayer/2018.4.36f1 "
@@ -126,7 +131,8 @@ def _call(session: dict, route: str, payload: str, seq: int, gateway_ip: str):
     body = urllib.parse.urlencode(
         {"uid": uid, "outdatacode": enc, "req_id": req_id})
     try:
-        status, raw = _post_via_ip(gateway_ip, route, body)
+        status, raw = _post_via_ip(gateway_ip, route, body,
+                                   host=session.get("host"))
     except PackError:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -199,7 +205,8 @@ def _call_any(session: dict, route: str, payload: str, seq: int, gateway_ip: str
     body = urllib.parse.urlencode(
         {"uid": uid, "outdatacode": enc, "req_id": req_id})
     try:
-        status, raw = _post_via_ip(gateway_ip, route, body)
+        status, raw = _post_via_ip(gateway_ip, route, body,
+                                   host=session.get("host"))
     except PackError:
         raise
     except Exception as exc:  # noqa: BLE001

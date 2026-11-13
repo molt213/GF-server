@@ -29,7 +29,13 @@ from . import pcapng as _pcapng
 from .contract import PackError
 
 HOST = "gfcn-game.gw.merge.sunborngame.com"
+# 官方是同一套后端、多个分区，网关域名只差中间那几段：
+#   M4 / 安卓   gfcn-game.gw.merge.sunborngame.com
+#   iOS         gfcn-game.ios.merge.sunborngame.com
+# 所以按后缀放行，且前缀必须以 gfcn- 开头；其余域名一律拒绝。
+ALLOW_SUFFIXES = (".merge.sunborngame.com",)
 ALLOW_HOSTS = {HOST}
+_HOST_LABEL_RE = re.compile(r"^gfcn-[a-z0-9][a-z0-9.-]{0,60}$")
 QUEUE_KEY = "yundoudou"          # 登录前队列响应的固定密钥（见 server/gfcrypto.py）
 GET_UID_ROUTE = "Index/getUidPC"
 INDEX_ROUTE = "Index/index"
@@ -56,9 +62,26 @@ _UA = ("UnityPlayer/2018.4.36f1 "
 
 
 # ---------------------------------------------------------------- 安全检查
+def host_allowed(host: str) -> bool:
+    """白名单判定：精确命中，或 gfcn-* 前缀 + 官方后缀。"""
+    h = (host or "").strip().lower().rstrip(".")
+    if not h or len(h) > 253:
+        return False
+    if h in ALLOW_HOSTS:
+        return True
+    for suffix in ALLOW_SUFFIXES:
+        if not h.endswith(suffix):
+            continue
+        prefix = h[:-len(suffix)]
+        # 必须是 gfcn-<标签>[.<标签>]（最多三段），字符集受限
+        if prefix.count(".") <= 2 and _HOST_LABEL_RE.match(prefix):
+            return True
+    return False
+
+
 def assert_public_host(host: str) -> None:
     """host 白名单 + DNS 解析结果必须全是公网地址。"""
-    if host not in ALLOW_HOSTS:
+    if not host_allowed(host):
         raise PackError("host 不在白名单：%r" % host)
     try:
         infos = socket.getaddrinfo(host, 80, type=socket.SOCK_STREAM)
@@ -211,6 +234,32 @@ def scan_capture(cap_path) -> dict:
         "getuidpc_seen": seen,
         "getuidpc_raw": stats.get("raw_route_hits", 0),
     }
+
+
+def detect_host(cap_path) -> str:
+    """从抓包里认出这次登录用的网关域名（请求的 Host 头）。
+
+    官方多个分区（M4 安卓 / iOS / 渠道服）网关域名不同，抓包前没法预知该
+    锁哪个 IP；所以先按端口抓，事后再从请求头把域名认出来。认不出返回空串，
+    调用方回退到内置默认 HOST。
+    """
+    try:
+        scan = scan_capture(cap_path)
+    except Exception:  # noqa: BLE001  识别失败不该盖掉真正的错误
+        return ""
+
+    def _pick(pred) -> str:
+        for req in scan["requests"]:
+            if not pred(req):
+                continue
+            raw = (req.headers or {}).get("host", "")
+            host = raw.strip().split(":")[0].lower().rstrip(".")
+            if host and host_allowed(host):
+                return host
+        return ""
+
+    return (_pick(lambda r: "Index/" in (r.target or ""))
+            or _pick(lambda r: True))
 
 
 def _decode_with_key(body: bytes, headers, key: str):
@@ -374,6 +423,12 @@ def diagnose_text(scan: dict) -> str:
                  % (stats["packets"], stats["drop_l2"], stats["drop_ip"],
                     stats["drop_proto"], stats["drop_tcp"],
                     stats["drop_port"], stats["truncated"]))
+    if stats["packets"] == 0:
+        lines.append("")
+        lines.append("  ↑ 一个包都没抓到。常见原因：")
+        lines.append("    · 开着加速器 / VPN / 代理 —— 流量被隧道吃掉，物理网卡上看不到")
+        lines.append("    · 游戏没真正登录到主界面（卡更新、登录失败、提前退出）")
+        lines.append("    · 抓包期间完全没有 HTTP（80 端口）流量")
     if stats["other_ports"]:
         top = sorted(stats["other_ports"].items(), key=lambda kv: -kv[1])[:5]
         lines.append("  其它端口前 5：" + "，".join(

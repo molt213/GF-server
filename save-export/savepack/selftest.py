@@ -747,6 +747,51 @@ def s16(ctx: Ctx):
     return "推算 5 键 + 转换 %d 键，空响应不产物" % len(out)
 
 
+@step("S17 多分区域名：从 Host 头自动识别（M4 / iOS / 渠道服）")
+def s17(ctx: Ctx):
+    from savepack import live
+
+    # --- 白名单：官方各分区形如 gfcn-<label>[.<label>].merge.sunborngame.com
+    assert live.host_allowed("gfcn-game.gw.merge.sunborngame.com"), "M4 服"
+    assert live.host_allowed("gfcn-game.ios.merge.sunborngame.com"), "iOS 服"
+    assert live.host_allowed("GFCN-Game.IOS.merge.SunbornGame.com"), "大小写"
+    assert live.host_allowed("gfcn-game.bili.merge.sunborngame.com"), "渠道服"
+    # 不在白名单的必须拒
+    for bad in ("evil.com", "", "gfcn-game.merge.sunborngame.com.evil.com",
+                "gfcn-.merge.sunborngame.com", "xgfcn-game.merge.sunborngame.com",
+                "gfcn-game.a.b.c.d.merge.sunborngame.com"):
+        assert not live.host_allowed(bad), "不该放行：%r" % bad
+
+    # --- 从抓包请求头认出域名（这正是 iOS 服能用的关键）
+    form = b"openid=abc&sid=1&ticket=xyz"
+    ios_req = (b"POST /index.php/1000/Index/getUidPC HTTP/1.1\r\n"
+               b"Host: gfcn-game.ios.merge.sunborngame.com\r\n"
+               b"Content-Type: application/x-www-form-urlencoded\r\n"
+               b"Content-Length: " + str(len(form)).encode() + b"\r\n\r\n" + form)
+    cap = ctx.tmp / "s17_ios.pcapng"
+    cap.write_bytes(_mk_pcapng([_frame(52000, 80, 100, ios_req)]))
+    assert live.detect_host(cap) == "gfcn-game.ios.merge.sunborngame.com", \
+        live.detect_host(cap)
+
+    # Host 带端口要能剥掉；非 Index 路由也要认得出
+    other = (b"POST /index.php/1000/Friend/list HTTP/1.1\r\n"
+             b"Host: gfcn-game.ios.merge.sunborngame.com:80\r\n"
+             b"Content-Length: 2\r\n\r\n{}")
+    cap2 = ctx.tmp / "s17_ios2.pcapng"
+    cap2.write_bytes(_mk_pcapng([_frame(52001, 80, 200, other)]))
+    assert live.detect_host(cap2) == "gfcn-game.ios.merge.sunborngame.com"
+
+    # 认不出（比如上次那个空包）返回空串，调用方回退内置默认
+    empty = ctx.tmp / "s17_empty.pcapng"
+    empty.write_bytes(_mk_pcapng([]))
+    assert live.detect_host(empty) == "", live.detect_host(empty)
+
+    # 空包诊断要给出人话提示
+    diag = live.diagnose_text(live.scan_capture(empty))
+    assert "一个包都没抓到" in diag and "加速器" in diag, diag
+    return "M4/iOS/渠道服白名单 + Host 自动识别 + 空包提示"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="savepack.selftest")
     ap.add_argument("--quick", action="store_true", help="离线快速自测（当前唯一模式）")

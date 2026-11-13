@@ -67,15 +67,24 @@ class Capture:
 
     # ------------------------------------------------------------ 抓包
     def start(self, ips=None, use_filter: bool = True) -> None:
-        """开始抓包。ips 给定时只抓这些 IP 的 TCP/80 流量。"""
+        """开始抓包。
+
+        ips 为空时只按 **TCP 80 端口**过滤、不限 IP —— 官方有多个服
+        （M4 / iOS / 渠道服…），网关域名各不相同，列不全也锁不准；
+        先按端口抓下来，再从请求的 Host 头认服务器。
+        """
         self.filter_names = []
         self.filter_note = ""
-        if use_filter and ips:
+        if use_filter:
             clear_filters()
-            for i, ip in enumerate(ips[:MAX_FILTERS]):
-                name = FILTER_PREFIX + str(i)
-                r = _quiet(["filter", "add", name, "-i", str(ip),
-                            "-t", "TCP", "-p", "80"])
+            if ips:
+                rules = [(FILTER_PREFIX + str(i), ["-i", str(ip)])
+                         for i, ip in enumerate(ips[:MAX_FILTERS])]
+            else:
+                rules = [(FILTER_PREFIX + "0", [])]
+            for name, extra in rules:
+                r = _quiet(["filter", "add", name] + extra
+                           + ["-t", "TCP", "-p", "80"])
                 if r is not None and r.returncode == 0:
                     self.filter_names.append(name)
                 else:

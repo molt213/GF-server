@@ -69,18 +69,18 @@ def run(from_pcap=None, keep: bool = False, use_filter: bool = True,
     pcap = None
     ok = False
     try:
+        gateway_ip = gateway
         if from_pcap:
             pcap = Path(from_pcap).expanduser().resolve()
             if not pcap.is_file():
                 raise PackError("抓包文件不存在：%s" % pcap)
             print("[1/4] 跳过抓包，直接读：%s" % pcap)
-            gateway_ip = gateway or proxy.resolve_gateway()
         else:
             print("[1/4] 准备抓包…")
-            gateway_ip = gateway or proxy.resolve_gateway()
-            print("      网关 %s → %s" % (HOST, gateway_ip))
+            print("      只抓 TCP 80 端口，不限服务器")
+            print("      （官方有 M4 / iOS 等多个分区，域名不同；抓完从请求头认）")
             cap = capture.Capture()
-            cap.start(ips=[gateway_ip], use_filter=use_filter)
+            cap.start(ips=[gateway] if gateway else None, use_filter=use_filter)
             print("      pktmon 已开始抓包：%s" % cap.status_text())
             print("      （不改 hosts、不占端口）")
             print()
@@ -107,6 +107,15 @@ def run(from_pcap=None, keep: bool = False, use_filter: bool = True,
               % (scan["stats"]["packets"], len(scan["flows"]),
                  len(scan["requests"]), len(scan["responses"])))
 
+        # 认分区：M4 是 gfcn-game.gw.*，iOS 是 gfcn-game.ios.*，域名不同。
+        # 从抓包里客户端自己发的请求头读，读不到就退回内置默认。
+        host = live.detect_host(pcap) or HOST
+        if host != HOST:
+            print("      识别到分区域名：%s" % host)
+        if not gateway_ip:
+            gateway_ip = proxy.resolve_host_ip(host)
+            print("      服务器 %s → %s" % (host, gateway_ip))
+
         session, how = live.find_uid_response(pcap, scan)
         if session:
             print("      凭据来源：%s（不重放登录请求）" % how)
@@ -118,7 +127,7 @@ def run(from_pcap=None, keep: bool = False, use_filter: bool = True,
                 print(live.diagnose_text(scan))
                 raise
             print("      登录表单：%s" % summary)
-            session = official.session_from_form(form, gateway_ip)
+            session = official.session_from_form(form, gateway_ip, host=host)
 
         # 抓包里客户端自己拉的那份 Index/index，先取出来复用（直拉失败时兜底）。
         # 注意它的 user_info.id 可能和登录响应的 uid 不同（实测两个值并不一致）：
@@ -375,7 +384,8 @@ def _selftest(net: bool = False) -> int:
         cap = None
         try:
             cap = capture.Capture()
-            cap.start(ips=[ip] if ip else None)
+            # 与正式流程一致：只按 TCP 80 端口过滤，不限 IP
+            cap.start()
             print("  抓包：%s" % cap.status_text())
             sent = 0
             if ip:
