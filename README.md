@@ -88,6 +88,7 @@
 | 一直卡在加载条 | 资源没下完，或者解压还没结束 |
 | 进去了但只有 1 级 | 存档没导入，用的是示例档 |
 | 点按钮没反应 | 同第一条，回 GF 私服 重新点启动 |
+| 拉资源报 `198.18.x.x` | 代理的 fake-ip 被旧版拦了，见[拉取资源失败](#拉取资源失败) |
 
 ---
 
@@ -98,8 +99,8 @@
 | 文件 | 包名 | 字节数 | SHA-256 |
 |---|---|---|---|
 | `gf_cn_506_local.apk` | `com.sunborn.girlsfrontline.cn` | 318,403,335 | `c973de25ecd40a7b46b73784c3d9d04db84ecc982676985dc3ce04a1344ecfd5` |
-| `app-debug.apk` | `com.gfserver.phone.debug` | 188,725,401 | `6dc3276683b632b1a6b1a10a0440ce858294c75e6eb393596cf3c7b5445c0ab1` |
-| `GFSaveExport.exe` | —（Windows 工具，非 APK） | 9,722,194 | `6100a9cd2420c8b98cddd3951c846346ac1d927836282773bf0b04af6fe30562` |
+| `app-debug.apk` | `com.gfserver.phone.debug` | 189,263,984 | `1324bcdf07b9d9f31705108e378439243a214938fea65a09180441b354590a49` |
+| `GFSaveExport.exe` | —（Windows 工具，非 APK） | 9,726,479 | `a2da69ee0c89defdebcb0b254972b10ea793b8d0ebefd14d40b7c905caf38fe9` |
 
 `GFSaveExport.exe` 就是「GF存档导出」—— 在电脑上导出官方账号存档用，见[使用教程第 ④ 步](#使用教程)。不用装 Python。
 
@@ -198,6 +199,29 @@ Android/data/com.gfserver.phone.debug/files/gfserver/data/cdn/android3060/
 ```
 
 解压成功后分卷会被删掉。
+
+### 拉取资源失败
+
+**报 `ValueError: 拒绝环回/私有/保留地址：github.com -> 198.18.x.x`**
+
+`198.18.0.0/15` 是代理软件 TUN 模式的 **fake-ip 池**（Clash 默认 `198.18.0.1/16`、
+Surge 用整个 `/15`），不是真的服务器地址。开着这类代理时 GitHub 的 DNS 会被应答成
+假地址，真实连接由 VPN 层按 SNI 还原；而 2026-11-13 之前的 App 会把它当内网请求拦掉。
+
+两条路，任选一条：
+
+- **升级 `app-debug.apk`**（上表那一版之后）—— 已能识别 fake-ip 段并放行，
+  IP 字面量和真正的内网地址仍然照旧拒
+- **继续用旧版**：在代理里把 GitHub 域名排除出 fake-ip
+
+```yaml
+dns:
+  fake-ip-filter:
+    - '+.github.com'
+    - '+.githubusercontent.com'
+```
+
+mihomo / Clash Meta 改完重载配置；或者把 DNS 模式从 `fake-ip` 换成 `redir-host`。
 
 ---
 
