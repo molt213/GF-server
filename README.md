@@ -67,6 +67,15 @@ adb install app-debug.apk
 
 Then open **GF 私服** → 启动, and start the game.
 
+> **Upgrading an existing install.** `server.zip` is extracted only once, guarded
+> by an `.unzip-ok` marker written next to `gfserver.py`. Installing a new APK
+> over an existing install keeps that marker, so the extracted tree — including
+> your save — is left alone. If the marker is missing (fresh install, cleared app
+> data, or manual deletion) the whole tree is re-extracted and
+> `content/player/l1.json` is replaced by the demo save. Back up
+> `Android/data/com.gfserver.phone.debug/files/gfserver/content/player/` first if
+> that matters.
+
 ### Resources
 
 The APK does **not** contain the 11 GB resource tree. Two ways to get it:
