@@ -1,153 +1,122 @@
 # GF-server
 
-Resources and tools for a self-hosted Girls' Frontline (CN) 3.0600_506 server.
+《少女前线》（国服）3.0600_506 自建服务端的资源与工具。
 
-| Part | Where |
+| 内容 | 位置 |
 |---|---|
-| Game resources — 11.03 GiB | release [`res-v1`](#res-v1) |
-| Two APKs — client + server | release [`apk-v1`](#apk-v1) |
-| Save export tool | [`save-export/`](save-export/README.md) |
+| 游戏资源 —— 11.03 GiB | Release [`res-v1`](#res-v1) |
+| 两个 APK —— 客户端 + 服务端 | Release [`apk-v1`](#apk-v1) |
+| 存档导出工具 | [`save-export/`](save-export/README.md) |
 
 ---
 
 ## apk-v1
 
-Both APKs must be installed **on the same Android device** — the client only ever
-talks to `127.0.0.1`.
+两个 APK 必须装在**同一台 Android 设备**上 —— 客户端只连 `127.0.0.1`。
 
-| File | Package | Bytes | SHA-256 |
+| 文件 | 包名 | 字节数 | SHA-256 |
 |---|---|---|---|
 | `gf_cn_506_local.apk` | `com.sunborn.girlsfrontline.cn` | 318,403,335 | `c973de25ecd40a7b46b73784c3d9d04db84ecc982676985dc3ce04a1344ecfd5` |
 | `app-debug.apk` | `com.gfserver.phone.debug` | 188,725,401 | `6dc3276683b632b1a6b1a10a0440ce858294c75e6eb393596cf3c7b5445c0ab1` |
 
-### Client APK
+### 客户端 APK
 
-The official 3.0600_506 client, **re-signed with a local key**. Exactly two things
-differ from the official package:
+官方 3.0600_506 客户端，**用本地密钥重新签名**。相对官方包只有两处不同：
 
-1. `res/xml/network_security_config.xml` also trusts the CA that is bundled inside
-   the APK (referenced as an existing resource), so **no certificate needs to be
-   installed** on the device.
-2. Every server URL in the IL2CPP metadata points at `127.0.0.1`. The port is part
-   of the URL (`:8080` / `:8443`) because Android refuses to bind ports below 1024
-   for non-root apps. The replacement is length-preserving; overflow is padded with
-   a `/moltxxxxxx/` path prefix that the server strips.
+1. `res/xml/network_security_config.xml` 额外信任 APK 内置的那张 CA（以资源引用方式指向），所以**设备上不需要安装任何证书**。
+2. IL2CPP metadata 里的服务器地址全部改写成 `127.0.0.1`。端口写在 URL 里（`:8080` / `:8443`），因为 Android 不允许非 root 应用绑定 1024 以下的端口。替换是等长的，溢出部分补成 `/moltxxxxxx/` 路径前缀，由服务端剥掉。
 
-Game logic, assets, and the anti-cheat libraries (`libtersafe2.so` / `libtprt.so`)
-are byte-for-byte untouched.
+游戏逻辑、资源、反作弊库（`libtersafe2.so` / `libtprt.so`）逐字节未改。
 
-Re-signing means a different signature than the official package, so installing it
-over an official install requires an uninstall first (which wipes
-`Android/data/<pkg>`, i.e. the multi-GB resource cache).
+重签名意味着签名与官方包不同，所以覆盖安装官方包必须先卸载（卸载会带走 `Android/data/<pkg>`，也就是数 GB 的资源缓存）。
 
-### Server APK
+### 服务端 APK
 
-Chaquopy CPython 3.11. Listens on `127.0.0.1:8080` (HTTP) and `127.0.0.1:8443`
-(TLS), binds nothing else. `assets/server.zip` is extracted once into the app's
-external files directory (`Android/data/com.gfserver.phone.debug/files/gfserver/`).
+Chaquopy CPython 3.11。只监听 `127.0.0.1:8080`（HTTP）和 `127.0.0.1:8443`（TLS），不绑定其他地址。首次启动时把 `assets/server.zip` 解压到应用外部私有目录（`Android/data/com.gfserver.phone.debug/files/gfserver/`）。
 
-The bundled player data is a **demo save** — `uid 1000001`, name `指挥官`. Replace
-it with your own by importing a `save-<uid>-<yyyymmdd>.gfsave.zip` from the server
-app's 「导入存档」 button.
+内置的玩家数据是**示例存档** —— `uid 1000001`，名字 `指挥官`。要换成自己的号，在服务端 App 里点「导入存档」，选 `save-<uid>-<yyyymmdd>.gfsave.zip`。
 
-> There is no "new account" bootstrap in the server: `content/player/l1.json` must
-> exist, otherwise `Index/index` answers `error:0` and the client cannot get past
-> the title screen. That is why a demo save ships inside the APK.
+> 服务端**没有「新号初始化」逻辑**：`content/player/l1.json` 必须存在，否则 `Index/index` 回 `error:0`，客户端过不了标题画面。这就是要在 APK 里带一份示例档的原因。
 
-The APK also carries the self-signed CA (certificate + key) used for TLS on
-`127.0.0.1:8443`. It is a throwaway, localhost-only anchor that the client APK
-above trusts — do not reuse it for anything else.
+APK 里同时带着 `127.0.0.1:8443` 用的自签 CA（证书 + 私钥）。它是一个一次性的、只在回环地址上用的锚点，供上面那个客户端 APK 信任 —— **不要拿去用在别的地方**。
 
-### Install
+### 安装
 
 ```sh
 adb install gf_cn_506_local.apk
 adb install app-debug.apk
 ```
 
-Then open **GF 私服** → 启动, and start the game.
+然后打开 **GF 私服** → 点「启动」，再开游戏。
 
-> **Upgrading an existing install.** `server.zip` is extracted only once, guarded
-> by an `.unzip-ok` marker written next to `gfserver.py`. Installing a new APK
-> over an existing install keeps that marker, so the extracted tree — including
-> your save — is left alone. If the marker is missing (fresh install, cleared app
-> data, or manual deletion) the whole tree is re-extracted and
-> `content/player/l1.json` is replaced by the demo save. Back up
-> `Android/data/com.gfserver.phone.debug/files/gfserver/content/player/` first if
-> that matters.
+> **覆盖安装已有环境时注意。** `server.zip` 只解压一次，靠写在 `gfserver.py` 旁边的 `.unzip-ok` 标记把关。覆盖安装会保留这个标记，所以已解压的树 —— 包括你的存档 —— 不会被动。标记缺失时（全新安装、清了应用数据、手动删过）整棵树会重新解压，`content/player/l1.json` 会被示例档覆盖。介意的话先把 `Android/data/com.gfserver.phone.debug/files/gfserver/content/player/` 备份出来。
 
-### Resources
+### 资源
 
-The APK does **not** contain the 11 GB resource tree. Two ways to get it:
+APK 里**不含**那 11 GB 资源树。两种拿法：
 
-- The server app's resource page can fetch the `res-v1` volumes from GitHub
-  (see below) and extract them automatically;
-- or push an `android3060/` tree manually into
-  `Android/data/com.gfserver.phone.debug/files/gfserver/data/cdn/android3060/`.
+- 服务端 App 的资源页可以直接从 GitHub 拉 `res-v1` 的分卷并自动解压；
+- 或者手动把 `android3060/` 目录推进
+  `Android/data/com.gfserver.phone.debug/files/gfserver/data/cdn/android3060/`。
 
 ---
 
 ## save-export
 
-Windows tool that exports a PC inherit-edition account's current progress into a
-`save-<uid>-<yyyymmdd>.gfsave.zip` the server app can import. Captures the login
-traffic with the built-in `pktmon` and reads the `Index/getUidPC` response — no
-request replay, no third-party packages.
+Windows 工具，把 PC 继承版账号的当前进度导出成服务端 App 能导入的
+`save-<uid>-<yyyymmdd>.gfsave.zip`。用系统自带的 `pktmon` 抓登录流量，读
+`Index/getUidPC` 的响应 —— 不重放请求，不依赖第三方包。
 
-See [`save-export/README.md`](save-export/README.md).
+详见 [`save-export/README.md`](save-export/README.md)。
 
 ---
 
 ## res-v1
 
-`android3060` full resource set — **11.03 GiB**, split into 6 tar volumes:
+`android3060` 全量资源 —— **11.03 GiB**，切成 6 个 tar 分卷：
 
 ```
 res-android3060-part-aa .. res-android3060-part-af
 SHA256SUMS.txt
 ```
 
-Each volume is under 1.9 GB (GitHub caps a release asset at 2 GB).
+每卷都在 1.9 GB 以内（GitHub 单个 release 资产上限 2 GB）。
 
-### How to reassemble
+### 怎么拼回去
 
-Concatenate `aa` .. `af` **in that order** — the result is a single tar stream:
+按 `aa` .. `af` 的**顺序**拼接，得到的是一个完整的 tar 流：
 
 ```sh
 cat res-android3060-part-a{a,b,c,d,e,f} | tar -xf -
 ```
 
-Archive member paths carry **no directory prefix**, so extract into an
-`android3060/` directory:
+归档里的成员路径**不带目录前缀**，所以要解到 `android3060/` 目录里：
 
 ```sh
 mkdir -p android3060
 tar -xf - -C android3060
 ```
 
-### Verify
+### 校验
 
 ```sh
 sha256sum -c SHA256SUMS.txt
 ```
 
-Each line is `<sha256> *<volume name>`.
+每行格式是 `<sha256> *<分卷名>`。
 
-### How the server uses it
+### 服务端怎么用它
 
-The server APK (resource page -> "fetch from GitHub") downloads the volumes to a
-`<dest>.dl/` cache, verifies each SHA-256, concatenates them into one read-only
-stream, and streams the tar into:
+服务端 App 的资源页（「从 GitHub 拉取」）会把分卷下到 `<目标>.dl/` 缓存里，逐卷校验 SHA-256，再拼成一个只读流，把 tar 直接解到：
 
 ```
 Android/data/com.gfserver.phone.debug/files/gfserver/data/cdn/android3060/
 ```
 
-Volumes are deleted after a successful extraction.
+解压成功后分卷会被删掉。
 
 ---
 
-## Scope
+## 范围
 
-Local research / preservation only. Everything here talks to `127.0.0.1`; it does
-not touch, proxy, or impersonate the official service.
+仅供本地研究与保存用途。这里所有东西都只跟 `127.0.0.1` 通信，不接触、不代理、不冒充官方服务。
