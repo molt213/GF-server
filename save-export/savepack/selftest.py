@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -41,7 +42,9 @@ from savepack.contract import (  # noqa: E402
     sha256_bytes,
 )
 
-DEFAULT_SERVER = r"D:/claude/gf/gfserver/server"
+# 自测要拿一份真实的私服 server/ 树当输入（S1/S2/S7 用它验证「真实 l1」路径）。
+# 用 --server 或 GF_SERVER_DIR 指过去；没有就只跑不依赖它的步骤。
+DEFAULT_SERVER = os.environ.get("GF_SERVER_DIR") or r"D:/claude/gf/gfserver/server"
 
 _STEPS = []
 

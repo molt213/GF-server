@@ -79,6 +79,15 @@ python -m savepack.selftest
 重复包、uid 红线、篡改检测、normalize、validate、好友双解、补充键白名单、
 本地推算与结构转换。全过约 2 秒。
 
+自测要拿一份真实的私服 `server/` 目录当输入（S1/S2/S7 用它验证真实 l1 路径）。
+不在默认位置就用 `--server` 或环境变量指定：
+
+```bash
+GF_SERVER_DIR=/path/to/gfserver/server python -m savepack.selftest
+# 或
+python -m savepack.selftest --server /path/to/gfserver/server
+```
+
 ## 目录
 
 | 文件 | 作用 |
